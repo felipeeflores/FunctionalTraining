@@ -1,5 +1,7 @@
 package ft.typesafety
 
+import scala.util.Try
+
 /**
   * Use pattern matching and recursion.  No vars, no loops, no overriding.
   *
@@ -64,11 +66,12 @@ object OptionalExercises1 {
 
   val config = Map[String, String]("host" -> "rea.com", "port" -> "8080")
 
-  def getFromConfig(key: String): Option[String] = ???
+  def getFromConfig(key: String): Option[String] = config.get(key)
 
-  def lengthOfHost(): Option[Int] = ???
+  def lengthOfHost(): Option[Int] = getFromConfig("host").map(_.size)
 
-  def portPlus1000(): Option[Int] = ???
+  //slowly build this up, explain a simple solution without try, then explain flatMap with Try
+  def portPlus1000(): Option[Int] = getFromConfig("port").flatMap(portStr => Try(portStr.toInt).toOption).map(_ + 1000)
 }
 
 object OptionalExercises2 {
@@ -77,11 +80,25 @@ object OptionalExercises2 {
   val envs = Map("rea.com" -> "prod", "test.rea.com" -> "test", "amazon.com" -> "stage")
 
   // Should return the host string if successful or "couldn't resolve" if unsuccessful
-  def getEnvForHost(host: String): String = ???
+  def getEnvForHost(host: String): String = hosts.get(host).flatMap(envs.get).getOrElse("couldn't resolve")
 
   // See how many ways you can implement this.
   // Will either return "Connected to <rea host>" or "not connected"
-  def connectToReaHostsOnly(host: String): String = ???
+  def connectToReaHostsOnly(host: String): String = {
+    hosts.get(host).filter(_.contains("rea")).map(createConnection).getOrElse("not connected")
+  }
+  /*
+  Other solutions:
+    1)
+    hosts.get(host)
+    .flatMap(domain => if (domain.contains("rea.com")) Some(domain) else None)
+    .fold("not connected")(createConnection)
+
+    2)
+    val maybeResponse = if (host.contains("rea")) hosts.get(host).map(createConnection) else None
+    maybeResponse.getOrElse("not connected")
+
+   */
 
   def createConnection(domain: String): String = s"connected to $domain"
 }
@@ -101,23 +118,60 @@ object OptionalExercises3 {
 
   sealed trait Maybe[+A]
 
-  case class Just[A](get: A) extends Maybe[A]
+  final case class Just[A](get: A) extends Maybe[A]
 
   case object Nothing extends Maybe[Nothing]
 
-  def flatMap[A, B](m: Maybe[A])(f: A => Maybe[B]): Maybe[B] = ???
+  def flatMap[A, B](m: Maybe[A])(f: A => Maybe[B]): Maybe[B] = m match {
+    case Just(get) => f(get)
+    case Nothing => Nothing
+  }
 
-  def map[A, B](m: Maybe[A])(f: A => B): Maybe[B] = ???
+  def map[A, B](m: Maybe[A])(f: A => B): Maybe[B] =  m match {
+    case Just(get) => Just(f(get))
+    case Nothing => Nothing
+  }
 
-  def fold[A, B](m: Maybe[A], default: => B, f: A => B): B = ???
+  def fold[A, B](m: Maybe[A], default: => B, f: A => B): B = m match {
+    case Just(get) => f(get)
+    case Nothing => default
+  }
 
-  def orElse[A](m: Maybe[A], otherwise: => Maybe[A]): Maybe[A] = ???
+  def orElse[A](m: Maybe[A], otherwise: => Maybe[A]): Maybe[A] = m match {
+    case just@Just(_) => just
+    case Nothing => otherwise
+  }
 
-  def orSome[A](m: Maybe[A], default: => A): A = ???
+  def orSome[A](m: Maybe[A], default: => A): A = m match {
+    case Just(get) => get
+    case Nothing => default
+  }
 
-  def map2[A, B, C](f: (A, B) => C)(m1: Maybe[A], m2: Maybe[B]): Maybe[C] = ???
+  def map2[A, B, C](f: (A, B) => C)(m1: Maybe[A], m2: Maybe[B]): Maybe[C] = (m1, m2) match {
+    case (Just(a), Just(b)) => Just(f(a, b))
+    case _ => Nothing
+  }
 
-  def sequence[A](l: List[Maybe[A]]): Maybe[List[A]] = ???
+  def sequence[A](l: List[Maybe[A]]): Maybe[List[A]] = {
+    def loop(current: Maybe[List[A]], rest: List[Maybe[A]]): Maybe[List[A]] = {
+      rest match {
+        case Nil => current
+        case head :: tl  => head match {
+          case Just(get) =>
+            val newCurrent = current match {
+              case Just(list) => Just(get :: list)
+              case Nothing => Just(get :: Nil)
+            }
+            loop(newCurrent , tl)
+          case Nothing => Nothing
+        }
+      }
+    }
+    loop(Nothing, l.reverse)
+  }
 
-  def ap[A, B](m1: Maybe[A], m2: Maybe[A => B]): Maybe[B] = ???
+  def ap[A, B](m1: Maybe[A], m2: Maybe[A => B]): Maybe[B] = (m1, m2) match {
+    case (Just(a), Just(f)) => Just(f(a))
+    case _ => Nothing
+  }
 }
