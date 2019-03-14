@@ -147,11 +147,13 @@ object OptionalExercises3 {
     case Nothing => default
   }
 
+  //redeifne in terms of flatMap and map
   def map2[A, B, C](f: (A, B) => C)(m1: Maybe[A], m2: Maybe[B]): Maybe[C] = (m1, m2) match {
     case (Just(a), Just(b)) => Just(f(a, b))
     case _ => Nothing
   }
 
+  //use recursion + reverse, then re-implement in terms of flatMap, alternatively foldRight or
   def sequence[A](l: List[Maybe[A]]): Maybe[List[A]] = {
     def loop(current: Maybe[List[A]], rest: List[Maybe[A]]): Maybe[List[A]] = {
       rest match {
@@ -170,8 +172,29 @@ object OptionalExercises3 {
     loop(Nothing, l.reverse)
   }
 
+  def sequence_[A](l: List[Maybe[A]]): Maybe[List[A]] = {
+    val seed: Maybe[List[A]] = Just(Nil)
+    l.reverse.foldLeft(seed)((maybeListOfA, maybeA) => {
+      map2((a: A, as: List[A]) =>  a :: as)(maybeA, maybeListOfA)
+    })
+  }
+
+  def sequence__[A](l: List[Maybe[A]]): Maybe[List[A]] = {
+    val seed: Maybe[List[A]] = Just(Nil)
+    l.foldRight(seed)((maybeA, maybeListOfA) => {
+      map2((a: A, as: List[A]) =>  a :: as)(maybeA, maybeListOfA)
+    })
+  }
+
+  //redefine in terms of flatMap and map
   def ap[A, B](m1: Maybe[A], m2: Maybe[A => B]): Maybe[B] = (m1, m2) match {
     case (Just(a), Just(f)) => Just(f(a))
     case _ => Nothing
+  }
+
+  def ap2[A, B](m1: Maybe[A], m2: Maybe[A => B]): Maybe[B] = {
+    flatMap(m1)(
+      a => map(m2)(f => f(a))
+    )
   }
 }
